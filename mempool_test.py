@@ -29,11 +29,11 @@ async def call_loop(call_queue):
             result_queue.put_nowait(response)
             call_queue.task_done()    
 
-async def trace_tx(tx, call_queue):
+async def trace_tx(tx, call_queue, ts):
     q = asyncio.Queue()
     call_queue.put_nowait(('debug_traceCall', [tx, 'latest', { 'tracer': 'callTracer', 'tracerConfig': { 'withLog': True}}], q))
     debug = await q.get()
-    delay = 0
+    delay = time.monotonic()-ts
     h = tx['hash']
     if h not in known_txs:
         known_txs[h] = time.monotonic()
@@ -77,10 +77,11 @@ async def gw_loop(call_queue):
             "params": ["newTxs", {"include": ["tx_contents"]}]
         }))
         async for event in ws:
+            ts = time.monotonic()
             r = json.loads(event)
             if 'params' in r:
                 h = r['params']['result']
-                asyncio.create_task(trace_tx(h['txContents'], call_queue))
+                asyncio.create_task(trace_tx(h['txContents'], call_queue, ts))
 
 async def stats_writer():
     global stats
